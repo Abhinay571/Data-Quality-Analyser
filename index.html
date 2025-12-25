@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentinel - Data Quality Pro</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React and ReactDOM (UMD) -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .animate-in { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useEffect, useRef } = React;
+
+        // Optimized Icon component for Browser/UMD usage
+        const Icon = ({ name, size = 20, className = "" }) => {
+            const iconRef = useRef(null);
+            
+            useEffect(() => {
+                if (window.lucide) {
+                    window.lucide.createIcons({
+                        icons: { [name]: window.lucide.icons[name] },
+                        attrs: {
+                            class: className,
+                            width: size,
+                            height: size,
+                            'stroke-width': 2
+                        },
+                        nameAttr: 'data-lucide'
+                    });
+                }
+            }, [name, size, className]);
+
+            return <i ref={iconRef} data-lucide={name} className={className} style={{ width: size, height: size, display: 'inline-block' }}></i>;
+        };
+
+        // --- Sub-Component: Pattern Detail Card ---
+        function DetailedPatternCard({ issue, viewMode }) {
+            const [showFix, setShowFix] = useState(false);
+            
+            const insights = {
+                missing_value: {
+                    diagnostic: "Pattern detected when parser encounters empty commas or string literals like 'null' and 'NA'. Indicates validation failure at the point of entry.",
+                    impact: "Missing values in critical columns block mathematical aggregations and cause 'silent drops' during SQL inner joins in BI layers.",
+                    technicalLogic: "Structural Fix: The engine scans for common 'Null' signatures and normalizes them into a single constant 'REMEDIATED_NA' to ensure row-level continuity."
+                }
+            };
+            
+            const context = insights[issue.errorType] || insights.missing_value;
+
+            return (
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm overflow-hidden transition-all hover:shadow-md animate-in">
+                    <div className="flex justify-between items-start mb-6">
+                        <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                                <h4 className="text-lg font-bold text-slate-800">{issue.column}</h4>
+                                <span className="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-0.5 rounded tracking-widest uppercase">Systemic Gap</span>
+                            </div>
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-tight">Source: {issue.source}</p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-2xl font-black text-slate-800">{issue.occurrences.length}</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">Repeats</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div className="bg-slate-50 p-4 rounded-2xl">
+                            <h5 className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-2 flex items-center gap-1">
+                                <Icon name="shield-alert" size={12} /> Diagnostic
+                            </h5>
+                            <p className="text-xs text-slate-600 leading-relaxed font-medium">{context.diagnostic}</p>
+                        </div>
+                        <div className="bg-indigo-50 p-4 rounded-2xl">
+                            <h5 className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-2 flex items-center gap-1">
+                                <Icon name="trending-up" size={12} /> Impact
+                            </h5>
+                            <p className="text-xs text-slate-600 leading-relaxed font-medium">{context.impact}</p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
+                        <div className="flex gap-2">
+                            <span className="text-[9px] bg-slate-100 border border-slate-200 px-3 py-1 rounded-full text-slate-500 font-bold uppercase tracking-tighter">
+                                Session monitor active
+                            </span>
+                        </div>
+                        <button 
+                            onClick={() => setShowFix(!showFix)}
+                            className="text-indigo-600 text-xs font-bold flex items-center gap-2 hover:underline transition-all"
+                        >
+                            <Icon name="eye" size={14} /> {showFix ? 'Hide Logic' : 'How to fix?'}
+                        </button>
+                    </div>
+
+                    {showFix && (
+                        <div className="mt-4 pt-4 border-t border-slate-50 bg-slate-900 rounded-2xl p-5 animate-in text-white">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-slate-800 text-indigo-400 rounded-xl">
+                                    <Icon name="wand-2" size={20}/>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-white uppercase tracking-widest mb-1">Normalization Strategy</p>
+                                    <p className="text-xs text-slate-400 leading-relaxed">{context.technicalLogic}</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // --- Main App Component ---
+        function App() {
+            const [file, setFile] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [errorLog, setErrorLog] = useState([]); 
+            const [viewMode, setViewMode] = useState('cleaner'); 
+            const [selectedSource, setSelectedSource] = useState('BI Team A');
+            const [searchQuery, setSearchQuery] = useState('');
+            
+            const [lastProcessedData, setLastProcessedData] = useState(null); 
+            const [activeDiagnostics, setActiveDiagnostics] = useState([]);
+            const [isFixing, setIsFixing] = useState(false);
+            const [remediationSummary, setRemediationSummary] = useState(null);
+            const [showPreview, setShowPreview] = useState(false);
+
+            const handleFileUpload = async (e) => {
+                const uploadedFile = e.target.files?.[0];
+                if (!uploadedFile) return;
+
+                setFile(uploadedFile);
+                setLoading(true);
+                setActiveDiagnostics([]);
+                setRemediationSummary(null);
+                setShowPreview(false);
+
+                try {
+                    const text = await uploadedFile.text();
+                    const lines = text.trim().split('\n');
+                    if (lines.length < 1) return;
+
+                    const headers = lines[0].split(',').map(h => h.trim());
+                    const rows = [];
+                    for (let i = 1; i < lines.length; i++) {
+                        const values = lines[i].split(',').map(v => v.trim());
+                        const row = {};
+                        headers.forEach((header, idx) => { row[header] = values[idx] || ""; });
+                        rows.push(row);
+                    }
+
+                    setLastProcessedData({ headers, rows, filename: uploadedFile.name });
+
+                    const currentDiagnostics = [];
+                    headers.forEach(header => {
+                        const failingRows = [];
+                        rows.forEach((r, idx) => {
+                            const val = r[header];
+                            if (!val || val.trim() === '' || val.toLowerCase() === 'null' || val.toLowerCase() === 'na') {
+                                failingRows.push(idx + 2); 
+                            }
+                        });
+
+                        if (failingRows.length > 0) {
+                            const errorDetail = {
+                                id: Math.random().toString(36).substr(2, 9),
+                                errorType: 'missing_value',
+                                column: header,
+                                dataset: uploadedFile.name,
+                                source: selectedSource,
+                                count: failingRows.length,
+                                totalRows: rows.length,
+                                failingIndices: failingRows.slice(0, 10),
+                                timestamp: new Date().toISOString()
+                            };
+                            currentDiagnostics.push(errorDetail);
+                            setErrorLog(prev => [errorDetail, ...prev]);
+                        }
+                    });
+
+                    setActiveDiagnostics(currentDiagnostics);
+                } catch (error) {
+                    console.error('Analysis Error:', error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleAutoFixAndDownload = () => {
+                if (!lastProcessedData) return;
+                setIsFixing(true);
+                
+                setTimeout(() => {
+                    const { headers, rows, filename } = lastProcessedData;
+                    const changes = [];
+                    const fixedRows = rows.map(row => {
+                        const newRow = { ...row };
+                        headers.forEach(h => {
+                            if (!newRow[h] || newRow[h].trim() === "" || newRow[h].toLowerCase() === "null" || newRow[h].toLowerCase() === "na") {
+                                newRow[h] = "REMEDIATED_NA"; 
+                                const colChange = changes.find(c => c.column === h);
+                                if (colChange) colChange.count++;
+                                else changes.push({ column: h, count: 1 });
+                            }
+                        });
+                        return newRow;
+                    });
+
+                    const csvContent = [headers.join(','), ...fixedRows.map(row => headers.map(h => `"${row[h]}"`).join(','))].join('\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `healed_${filename}`;
+                    a.click();
+
+                    setIsFixing(false);
+                    setRemediationSummary(changes);
+                    setActiveDiagnostics([]); 
+                    setShowPreview(false);
+                }, 1000);
+            };
+
+            const stats = useMemo(() => {
+                const repeatedMap = {};
+                const teamStats = {};
+                errorLog.forEach(log => {
+                    const patternKey = `${log.source}|${log.column}`;
+                    if (!repeatedMap[patternKey]) repeatedMap[patternKey] = { ...log, occurrences: [] };
+                    repeatedMap[patternKey].occurrences.push(log);
+                    if (!teamStats[log.source]) teamStats[log.source] = { name: log.source, totalIssues: 0 };
+                    teamStats[log.source].totalIssues += 1;
+                });
+
+                const q = searchQuery.toLowerCase();
+                const searchFilter = (item) => (
+                    item.column?.toLowerCase().includes(q) || 
+                    item.source?.toLowerCase().includes(q)
+                );
+
+                return {
+                    repeated: Object.values(repeatedMap).filter(r => r.occurrences.length > 1).filter(searchFilter),
+                    recentActivity: errorLog.slice(0, 10).filter(searchFilter),
+                    teamRanking: Object.values(teamStats).map(t => ({
+                        ...t, score: Math.max(0, 100 - (t.totalIssues * 5))
+                    })).sort((a, b) => b.score - a.score).filter(t => t.name.toLowerCase().includes(q))
+                };
+            }, [errorLog, searchQuery]);
+
+            return (
+                <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+                    <header className="bg-white border-b border-slate-200 sticky top-0 z-10 px-6 py-4 flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-indigo-600 p-2 rounded-lg text-white">
+                                <Icon name="shield-alert" size={24} />
+                            </div>
+                            <div>
+                                <h1 className="text-xl font-bold tracking-tight">Sentinel</h1>
+                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Local Session Guardian</p>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 max-w-md mx-8 hidden md:block">
+                            <div className="relative">
+                                <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search patterns..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full bg-slate-100 border-none rounded-xl py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+                        </div>
+                        
+                        <div className="flex bg-slate-100 p-1 rounded-xl">
+                            <button onClick={() => setViewMode('cleaner')} className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${viewMode === 'cleaner' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>Monitor</button>
+                            <button onClick={() => setViewMode('sender')} className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${viewMode === 'sender' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>Teams</button>
+                        </div>
+                    </header>
+
+                    <main className="max-w-7xl mx-auto w-full p-6 lg:p-10 flex flex-col gap-8">
+                        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                            <div>
+                                <h2 className="text-3xl font-extrabold text-slate-800">{viewMode === 'cleaner' ? 'Diagnostic Portal' : 'Reliability Benchmarks'}</h2>
+                                <p className="text-slate-500 mt-1 italic">Scan files for systemic quality gaps. Processing is entirely private.</p>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <label className="text-xs font-bold text-slate-400 uppercase">Submission Stream</label>
+                                <select value={selectedSource} onChange={(e) => setSelectedSource(e.target.value)} className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium shadow-sm outline-none">
+                                    {['BI Team A', 'BI Team B', 'Marketing Data Team', 'Sales Analytics Team'].map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <div className="lg:col-span-2 space-y-8">
+                                <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
+                                    <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
+                                        <Icon name={viewMode === 'cleaner' ? 'bar-chart-3' : 'send'} size={18} className="text-indigo-600" />
+                                        {viewMode === 'cleaner' ? 'Upload for Profiling' : 'Submit Team Data'}
+                                    </h3>
+                                    
+                                    <label className="group relative border-2 border-dashed border-slate-200 rounded-2xl p-10 flex flex-col items-center justify-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-all">
+                                        <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+                                        <div className="bg-slate-50 p-4 rounded-2xl mb-4 group-hover:scale-110 transition-transform">
+                                            <Icon name="upload" size={32} className="text-slate-400 group-hover:text-indigo-600" />
+                                        </div>
+                                        <p className="text-slate-700 font-semibold">{file ? file.name : `Select CSV file for ${selectedSource}`}</p>
+                                        {loading && <div className="absolute inset-0 bg-white/95 rounded-2xl flex items-center justify-center font-bold text-indigo-600">Analyzing...</div>}
+                                    </label>
+
+                                    {showPreview && lastProcessedData && (
+                                        <div className="mt-8 bg-indigo-900 text-white rounded-3xl p-6 shadow-2xl animate-in">
+                                            <div className="flex items-center justify-between mb-6">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="bg-indigo-500 p-2 rounded-xl"><Icon name="eye" size={20} /></div>
+                                                    <h4 className="text-sm font-black uppercase tracking-widest">Remediation Preview</h4>
+                                                </div>
+                                                <button onClick={() => setShowPreview(false)}><Icon name="x" size={20}/></button>
+                                            </div>
+                                            <div className="bg-indigo-800/50 rounded-2xl overflow-hidden mb-6 custom-scrollbar max-h-64 overflow-y-auto">
+                                                <table className="w-full text-left text-[11px]">
+                                                    <thead className="bg-indigo-900/50 text-indigo-300 uppercase sticky top-0">
+                                                        <tr><th className="px-4 py-3">Row</th><th className="px-4 py-3">Column</th><th className="px-4 py-3">Raw</th><th className="px-4 py-3 text-center">→</th><th className="px-4 py-3 text-indigo-400">Fixed</th></tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-indigo-700/50">
+                                                        {activeDiagnostics.slice(0, 10).map((diag, i) => (
+                                                            <tr key={i}>
+                                                                <td className="px-4 py-3 font-mono text-indigo-400">#{diag.failingIndices[0]}</td>
+                                                                <td className="px-4 py-3 font-bold">{diag.column}</td>
+                                                                <td className="px-4 py-3 font-italic opacity-60">NULL</td>
+                                                                <td className="px-4 py-3 text-center opacity-40">→</td>
+                                                                <td className="px-4 py-3 font-bold text-emerald-400">REMEDIATED_NA</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2 text-[10px] text-indigo-300 italic"><Icon name="shield-check" size={14} className="text-emerald-400"/> Safe export mode enabled</div>
+                                                <button onClick={handleAutoFixAndDownload} className="bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-transform active:scale-95">
+                                                    {isFixing ? <Icon name="clock" size={14} className="animate-spin" /> : <Icon name="download" size={14}/>} 
+                                                    Download Cleansed CSV
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {!showPreview && activeDiagnostics.length > 0 && (
+                                        <div className="mt-8 border-t border-slate-100 pt-6">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                                    <Icon name="list-filter" size={16} className="text-indigo-600" /> Integrity Profile
+                                                </h4>
+                                                <button onClick={() => setShowPreview(true)} className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black bg-indigo-600 text-white hover:bg-indigo-700 transition-all">
+                                                    <Icon name="sparkles" size={14}/> Preview & Fix
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {activeDiagnostics.map((diag, i) => (
+                                                    <div key={i} className="bg-slate-50 border border-slate-100 rounded-2xl p-4 flex justify-between items-center">
+                                                        <span className="text-xs font-bold text-slate-700">{diag.column}</span>
+                                                        <span className="text-[10px] font-black px-2 py-0.5 rounded bg-rose-100 text-rose-600 uppercase">
+                                                            {((diag.count / diag.totalRows) * 100).toFixed(0)}% Error
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="space-y-4">
+                                    <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Icon name="alert-triangle" size={20} className="text-orange-500" /> Recurrent Anomalies</h3>
+                                    {stats.repeated.length === 0 ? (
+                                        <div className="bg-white rounded-3xl p-12 text-center border border-slate-100 italic text-slate-400 font-medium">Upload multiple files to see repeating quality patterns.</div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            {stats.repeated.map((issue, idx) => <DetailedPatternCard key={idx} issue={issue} viewMode={viewMode} />)}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="space-y-8">
+                                <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+                                    <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Icon name="history" size={18} className="text-indigo-600" /> Event Stream</h3>
+                                    <div className="space-y-4">
+                                        {stats.recentActivity.length === 0 ? <p className="text-xs text-slate-400 italic">No activity recorded.</p> : 
+                                            stats.recentActivity.map(log => (
+                                                <div key={log.id} className="flex gap-3 text-sm border-l-2 border-slate-200 pl-3 py-1">
+                                                    <div className="flex-1">
+                                                        <p className="font-bold text-slate-700 capitalize text-xs">{log.column} Gap</p>
+                                                        <p className="text-[9px] text-slate-400 uppercase font-black">{log.source}</p>
+                                                    </div>
+                                                    <span className="text-[9px] font-mono text-slate-400">{new Date(log.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                                                </div>
+                                            ))
+                                        }
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-xl">
+                                    <h3 className="font-bold mb-4 flex items-center gap-2 text-indigo-400"><Icon name="activity" size={18} /> Reliability Index</h3>
+                                    <div className="space-y-5">
+                                        {stats.teamRanking.map((team, idx) => (
+                                            <div key={team.name} className="flex flex-col gap-1.5">
+                                                <div className="flex justify-between text-[11px] font-black uppercase">
+                                                    <span className="text-slate-400">{team.name}</span>
+                                                    <span className={team.score > 70 ? 'text-emerald-400' : 'text-rose-400'}>{team.score.toFixed(0)}%</span>
+                                                </div>
+                                                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                                    <div className={`h-full transition-all duration-700 ${team.score > 70 ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{width: `${team.score}%`}} />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
